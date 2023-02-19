@@ -2,6 +2,7 @@ from ast import parse
 import tkinter as tk
 from tkinter import filedialog
 from tkinter.tix import IMAGETEXT
+from MotherShip import compile_mips_code
 
 class PageOne(tk.Frame):
     def __init__(self, master, next_page_callback):
@@ -158,11 +159,10 @@ class PageTwo(tk.Frame):
         # Get the input code from the text area
         code = self.input_text.get("1.0", "end-1c")
 
-        # Parse the input code
-        parsed_code = parse(code)
-
-        # Generate the MIPS code from the parsed code
+        # Generate the MIPS code using the compile_mips_code
         mips_code =  "" #generate_mips(parsed_code)
+        mips_code = compile_mips_code(code)
+        mips_code = ''.join(mips_code)
 
         # Execute the generated MIPS code and capture the output
         result = mips_code
