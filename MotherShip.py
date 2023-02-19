@@ -1,12 +1,32 @@
 from pyjsparser import parse
 # from loops import while_to_mips
+data = ['.data\n']
+nums = set()
+# global dataCtr
+dataCtr = 0
 
+data_to_var = {}
+
+
+
+# def read_variables(ast):
+#     dataCtr = 0
+#     dataHolder = []
+
+#     for node in ast:
+#         if node['type'] == 'AssignmentExpression':
+#             node['left']['name'] = f"data{dataCtr}"
+#             data_to_var[node['left']['name']] = f"data{dataCtr}"
+#             dataHolder = f"data{dataCtr}"
 
 
 def compile_mips_code(js_code):
-    compiled_code = []
+    compiled_code = ["\n.text\n"]
     ast = parse(js_code)
-    
+
+    global data
+    global dataCtr
+
     # try:
     for node in ast['body']:
 
@@ -14,7 +34,7 @@ def compile_mips_code(js_code):
         # print(node)
 
         if type == 'WhileStatement':
-            compiled_code.append(while_to_mips(node))
+            compiled_code += while_to_mips(node)
         
         elif type == 'ForStatement':
             compiled_code.append(for_to_mips(ast['body']))
@@ -22,15 +42,18 @@ def compile_mips_code(js_code):
         elif type == 'IfStatement':
             compiled_code += if_to_mips(node)
         
-        # elif type == 'ExpressionStatement':
-        #     evalExpression(node)
+        elif type == 'ExpressionStatement':
+            compiled_code += evalExpression(node)
 
         
     # except SyntaxError as jserr:
     #     print(f"Error parsing JavaScript code: {jserr}")
     #     return None
 
-    return compiled_code
+    result = data+compiled_code
+    data = ['.data\n']
+    dataCtr = 0
+    return result
 
 
 
@@ -39,8 +62,8 @@ def for_to_mips(node):
     mips = ''
     
     loop_var = node[0]['init']['declarations'][0]['id']['name']
-    loop_start = node[0]['init']['declarations'][0]['init']['value']
-    loop_end = node[0]['test']['right']['value']
+    loop_start = node[0]['init']['declarations'][0]['init']['raw']
+    loop_end = node[0]['test']['right']['raw']
 
     mips += f"li $t0, {loop_start}\n"
     mips += f"li $t1, {loop_end}\n"
@@ -49,13 +72,15 @@ def for_to_mips(node):
     mips += f"beq $t0, $t1, loop_end\n"
 
     for curnode in node:
-        if curnode['type'] == "If":
-            mips += ""  # hailes code
+        if curnode['type'] == "IfStatement":
+            mips += ''.join(if_to_mips(curnode))
+        
+        elif curnode['type'] == "ExpressionStatement":
+            mips += ''.join(evalExpression(curnode))
 
-    mips += f"addi $t0, $t0, $t2\n"
+    mips += f"add $t0, $t0, $t2\n"
     mips += f"j loop_start\n"
     mips += f"loop_end:\n"
-    print(mips)
     return mips
 
 
@@ -80,7 +105,7 @@ def while_to_mips(node):
         if node['type'] == 'Identifier':
             mips_code.append(f"lw $t0, {node['name']}")
         elif node['type'] == 'Literal':
-            mips_code.append(f"li $t0, {node['value']}")
+            mips_code.append(f"li $t0, {node['raw']}")
         elif node['type'] == 'BinaryExpression':
             left = node['left']
             right = node['right']
@@ -147,13 +172,23 @@ def if_to_mips(ast):
         elif node['type'] == 'BinaryExpression':
             return walk_binary_expression(node)
         
-        # elif node['type'] == 'Expression'   we neeeeeeeeeeeed Anan's code here
+        elif node['type'] == 'BlockStatement':
+            strt = ''
+            for index in range(len(node['body'])):
+                strt +=  walk(node['body'][index])
+            return strt
+        
+        elif node['type'] == 'ExpressionStatement':
+            return ''.join(evalExpression(node))
 
         elif node['type'] == 'Identifier':
             return walk_identifier(node)
         
         elif node['type'] == 'Literal':
             return walk_literal(node)
+        
+        else:
+            return ''
 
     def walk_if_statement(node):
         mips = []
@@ -214,15 +249,109 @@ def if_to_mips(ast):
         return f"li $v0, {node['raw']}"
     
     mips = []
-    mips.append(walk(ast))
+    mips.extend(walk(ast))
 
     return mips
 
-js = '''if (1 == 2) {
-let x = 0
-} else {
-let y = 6
+
+def stdOutput(expression): 
+    asm = [] 
+    global dataCtr
+    if expression["arguments"][0]["type"]== "Literal": 
+                val = expression["arguments"][0]["value"] 
+                strLabel = f"string{str(dataCtr)}" 
+                dataCtr += 1 
+                data.append(f'\n  {strLabel}: .asciiz "{val}"') 
+                asm.append(f"\nli $v0,4") 
+                asm.append(f"\nla $a0, {strLabel}") 
+                asm.append("\nsyscall") 
+                asm.append("\n") 
+ 
+    elif expression["arguments"][0]["type"]== "Identifier": 
+        label = expression["arguments"][0]["name"] 
+        if label in nums: 
+            asm.append(f"\nli $v0, 1") 
+            asm.append(f"\nlw $a0, {label}") 
+        else: 
+            asm.append(f"\nli $v0,4") 
+            asm.append(f"\nla $a0, {label}") 
+        asm.append("\nsyscall") 
+        asm.append("\n") 
+ 
+    elif expression["arguments"][0]["type"]== "BinaryExpression": 
+        arithmetic_converter(expression["arguments"][0]) 
+        asm.append(f"\nli $v0, 1") 
+        asm.append(f"\nmov $a0, $t0") 
+        asm.append(f"\nsyscall") 
+ 
+    return asm 
+ 
+     
+def evalExpression(node): 
+    asm = [] 
+    expression = node["expression"] 
+    type = expression["type"] 
+    if type == "CallExpression": 
+        callee = expression["callee"] 
+        if callee["object"]["name"] == "console" and callee["property"]["name"]== "log": 
+            asm.extend(stdOutput(expression)) 
+ 
+    elif type == "AssignmentExpression": 
+        identifier = expression["left"]["name"] 
+        if expression["right"]["type"] == "Literal": 
+            val = expression["right"]["value"] 
+            if isinstance(val, int): 
+                data.append(f"\n    {identifier}: .word {val}") 
+                nums.add(identifier) 
+            else: 
+                data.append(f'\n  {identifier}: .asciiz "{val}"') 
+ 
+        elif expression["right"]["type"] == "BinaryExpression": 
+            asm.append(arithmetic_converter(expression["right"]) )
+            data.append(f"\n    {identifier}: .word") 
+            asm.append(f"\nsw $t0, {identifier}") 
+            asm.append("\n") 
+ 
+    return asm
+
+def arithmetic_converter(ast, num = 0):
+    
+    if ast['type'] == 'Literal':
+        stmt = f"add $t{num}, $zero, {ast['raw']}\n"
+        return stmt
+    
+    elif ast['type'] == 'Identifier':
+        varname = ast['name']
+        
+
+    elif ast['type'] == 'BinaryExpression':
+        operator = operations[ast['operator']]
+        left = ast['left']
+        left = arithmetic_converter(left, num)
+        num += 1
+        right = ast['right']
+        right = arithmetic_converter(right, num)   
+
+        stmt = f"{left}{right}{operator} $t{num - 1}, $t{num - 1}, $t{num}\n"
+        num -= 1
+        return stmt
+
+operations = {
+    '+': 'add',
+    '-': 'sub',
+    '*': 'mul',
+    '/': 'div'
+}
+
+
+
+
+js = '''
+for(let i=0; i<5; i++){
+console.log(4)
 }
 '''
 
-print(compile_mips_code(js))
+# print((compile_mips_code(js)))
+# print(data)
+print(parse(js))

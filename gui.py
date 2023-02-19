@@ -3,6 +3,7 @@ import tkinter as tk
 from tkinter import filedialog
 from tkinter.tix import IMAGETEXT
 from MotherShip import compile_mips_code
+from MotherShip import data
 
 class PageOne(tk.Frame):
     def __init__(self, master, next_page_callback):
@@ -160,9 +161,8 @@ class PageTwo(tk.Frame):
         code = self.input_text.get("1.0", "end-1c")
 
         # Generate the MIPS code using the compile_mips_code
-        mips_code =  "" #generate_mips(parsed_code)
         mips_code = compile_mips_code(code)
-        mips_code = ''.join(mips_code)
+        mips_code = '\n'.join(mips_code)
 
         # Execute the generated MIPS code and capture the output
         result = mips_code
