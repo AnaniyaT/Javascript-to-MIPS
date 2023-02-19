@@ -37,7 +37,7 @@ def compile_mips_code(js_code):
             compiled_code += while_to_mips(node)
         
         elif type == 'ForStatement':
-            compiled_code.append(for_to_mips(ast['body']))
+            compiled_code.append(for_to_mips(node))
         
         elif type == 'IfStatement':
             compiled_code += if_to_mips(node)
@@ -61,9 +61,9 @@ def for_to_mips(node):
 
     mips = ''
     
-    loop_var = node[0]['init']['declarations'][0]['id']['name']
-    loop_start = node[0]['init']['declarations'][0]['init']['raw']
-    loop_end = node[0]['test']['right']['raw']
+    loop_var = node['init']['declarations'][0]['id']['name']
+    loop_start = node['init']['declarations'][0]['init']['raw']
+    loop_end = node['test']['right']['raw']
 
     mips += f"li $t0, {loop_start}\n"
     mips += f"li $t1, {loop_end}\n"
@@ -71,12 +71,12 @@ def for_to_mips(node):
     mips += f"loop_start:\n"
     mips += f"beq $t0, $t1, loop_end\n"
 
-    for curnode in node:
-        if curnode['type'] == "IfStatement":
-            mips += ''.join(if_to_mips(curnode))
+    # for curnode in node['body']:
+        # if curnode['type'] == "IfStatement":
+    mips += ''.join(if_to_mips(node['body']))
         
-        elif curnode['type'] == "ExpressionStatement":
-            mips += ''.join(evalExpression(curnode))
+        # elif curnode['type'] == "ExpressionStatement":
+        #     mips += ''.join(evalExpression(curnode))
 
     mips += f"add $t0, $t0, $t2\n"
     mips += f"j loop_start\n"
